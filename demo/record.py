@@ -42,7 +42,14 @@ def main():
     )
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-    environment = {**os.environ, "PS1": "demo$ ", "TERM": "dumb", "NO_COLOR": "1"}
+    environment = {
+        **os.environ,
+        "PS1": "demo$ ",
+        "TERM": "dumb",
+        "NO_COLOR": "1",
+        "UV": "uv --quiet",
+    }
+    environment.pop("VIRTUAL_ENV", None)
 
     def set_controlling_terminal():
         """Подключает PTY как управляющий терминал дочерней оболочки."""
@@ -121,12 +128,26 @@ def main():
         send("list_tables", COMMAND_PROMPT)
         send("exit", "demo$ ")
         os.write(master, b"exit\n")
+        deadline = time.monotonic() + 10
+        while process.poll() is None and time.monotonic() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.1)
+            if ready:
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                events.append([time.monotonic() - started, "o", chunk.decode("utf-8")])
         process.wait(timeout=5)
     finally:
         if process.poll() is None:
-            process.terminate()
+            process.kill()
             process.wait(timeout=5)
         os.close(master)
+        (DEMO_DIR / "transcript.txt").write_text(
+            "".join(event[2] for event in events), encoding="utf-8"
+        )
     transcript = "".join(event[2] for event in events)
     assert "Ошибка валидации" in transcript
     assert "Операция отменена." in transcript

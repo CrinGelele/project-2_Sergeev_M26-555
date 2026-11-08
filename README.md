@@ -63,5 +63,8 @@ make check
 `decorators` — обработка ошибок, подтверждение и кэш,
 `constants` — настройки, `main` — точка входа.
 
-[Запись полного сценария](demo/database.cast), воспроизведение:
+[![Полный цикл работы базы данных](demo/database.gif)](https://asciinema.org/a/wAZ7c6q2iQWkoMuS)
+
+[Открыть запись в asciinema](https://asciinema.org/a/wAZ7c6q2iQWkoMuS).
+[Исходная запись](demo/database.cast) воспроизводится командой
 `asciinema play demo/database.cast`. Новая запись: `make demo`.

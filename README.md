@@ -58,14 +58,42 @@ make test
 make check
 ```
 
-Исходники находятся в `src/primitive_db`: `core` — таблицы и CRUD,
-`utils` — JSON, `parser` — команды, `engine` — консольный цикл,
-`decorators` — обработка ошибок, подтверждение и кэш,
-`constants` — настройки, `main` — точка входа.
+## Структура
 
-[![Полный цикл работы базы данных](https://asciinema.org/a/wAZ7c6q2iQWkoMuS.svg)](https://asciinema.org/a/wAZ7c6q2iQWkoMuS)
+```text
+project-2_Sergeev_M26-555/
+├── dist/
+├── src/
+│   └── primitive_db/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── engine.py
+│       ├── core.py
+│       ├── utils.py
+│       ├── parser.py
+│       ├── decorators.py
+│       └── constants.py
+├── tests/
+├── demo/
+├── Makefile
+├── .python-version
+├── pyproject.toml
+├── uv.lock
+├── README.md
+└── .gitignore
+```
 
-[Открыть запись в asciinema](https://asciinema.org/a/wAZ7c6q2iQWkoMuS).
+`dist/` создаётся командой `uv build` и исключён из Git вместе с окружением
+и файлами базы данных. `core` отвечает за таблицы и CRUD, `utils` — за JSON,
+`parser` — за разбор команд, `engine` — за консольный цикл,
+`decorators` — за обработку ошибок, подтверждение и кэш,
+`constants` — за настройки, `main` — точка входа.
+
+## Демонстрация
+
+[![Полный цикл работы базы данных](https://asciinema.org/a/QHg9XXh1ST6Oauxh.svg)](https://asciinema.org/a/QHg9XXh1ST6Oauxh)
+
+[Открыть запись в asciinema](https://asciinema.org/a/QHg9XXh1ST6Oauxh).
 [Посмотреть GIF](demo/database.gif).
 [Исходная запись](demo/database.cast) воспроизводится командой
 `asciinema play demo/database.cast`. Новая запись: `make demo`.

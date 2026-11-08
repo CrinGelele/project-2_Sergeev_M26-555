@@ -71,9 +71,11 @@ def matches(row, where_clause):
     )
 
 
+#Этап 8
+
 @handle_db_errors
 def create_table(metadata, table_name, columns):
-    """Создаёт схему с автоматическим ID, не меняя исходный словарь."""
+    """Проверяет схему с автоматическим ID и добавляет её в metadata."""
     validate_name(table_name)
     if table_name in metadata:
         raise ValueError(f'Таблица "{table_name}" уже существует.')
@@ -82,17 +84,17 @@ def create_table(metadata, table_name, columns):
     result = metadata.copy()
     result[table_name] = [ID_DEFINITION, *columns]
     get_schema(result, table_name)
-    return result
+    metadata[table_name] = result[table_name]
+    return metadata
 
 
 @handle_db_errors
 @confirm_action("удаление таблицы")
 def drop_table(metadata, table_name):
-    """Удаляет схему таблицы после подтверждения, возвращая новый словарь."""
+    """Удаляет схему после подтверждения и возвращает обновлённый metadata."""
     get_schema(metadata, table_name)
-    result = metadata.copy()
-    del result[table_name]
-    return result
+    del metadata[table_name]
+    return metadata
 
 
 @handle_db_errors

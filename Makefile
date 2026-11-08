@@ -1,5 +1,5 @@
 UV ?= uv
-export UV_CACHE_DIR := $(CURDIR)/.local/uv-cache
+export UV_CACHE_DIR ?= $(CURDIR)/.local/uv-cache
 export UV_PYTHON_INSTALL_DIR := $(CURDIR)/.local/python
 export PYTHONDONTWRITEBYTECODE := 1
 

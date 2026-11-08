@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO_DIR = ROOT / "demo"
 WORKSPACE = ROOT / ".demo-workspaces" / str(time.time_ns())
 
-#Этап 8
+#Этап 9
 
 COMMAND_PAUSE_SECONDS = 2.0
 
@@ -52,6 +52,7 @@ def main():
         "TERM": "dumb",
         "NO_COLOR": "1",
         "UV": "uv --quiet",
+        "UV_CACHE_DIR": os.environ.get("UV_CACHE_DIR", str(ROOT / ".local/uv-cache")),
     }
     environment.pop("VIRTUAL_ENV", None)
 
@@ -60,7 +61,7 @@ def main():
         fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
     process = subprocess.Popen(
-        ["/bin/sh", "--noediting", "-i"],
+        ["/bin/sh", "--noediting", "-e", "-i"],
         stdin=slave,
         stdout=slave,
         stderr=slave,
@@ -92,21 +93,28 @@ def main():
                 )
             ready, _, _ = select.select([master], [], [], 1)
             if ready:
-                chunk = os.read(master, 65536)
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError as error:
+                    raise RuntimeError(
+                        f"Оболочка завершилась до {expected!r}: {received!r}"
+                    ) from error
                 if not chunk:
                     raise RuntimeError("Сеанс завершился до ожидаемого приглашения.")
                 received += chunk
                 events.append([time.monotonic() - started, "o", chunk.decode("utf-8")])
+        return received.decode("utf-8")
 
     def send(command, next_prompt):
         """Передаёт команду терминалу; её отображает настоящий терминальный echo."""
         time.sleep(COMMAND_PAUSE_SECONDS)
         os.write(master, (command + "\n").encode())
-        receive(next_prompt)
+        return receive(next_prompt)
 
     try:
         receive("demo$ ")
-        send("make install", "demo$ ")
+        installation = send("make install", "demo$ ")
+        assert "make: ***" not in installation and "error:" not in installation
         send("uv run database", COMMAND_PROMPT)
         for command in [
             "create_table users name:str age:int is_active:bool",
@@ -154,6 +162,8 @@ def main():
             "".join(event[2] for event in events), encoding="utf-8"
         )
     transcript = "".join(event[2] for event in events)
+    assert process.returncode == 0, process.returncode
+    assert "make: ***" not in transcript and "Traceback" not in transcript
     assert "Ошибка валидации" in transcript
     assert "Операция отменена." in transcript
     assert "успешно обновлена" in transcript and "успешно удалена" in transcript

@@ -1,7 +1,9 @@
-#Этап 2
+#Этап 3
 
-from primitive_db.constants import ID_DEFINITION, VALID_TYPES
-from primitive_db.utils import validate_name
+"""Управление схемами, валидация и CRUD без классов."""
+
+from primitive_db.constants import ID_COLUMN, ID_DEFINITION, VALID_TYPES
+from primitive_db.utils import load_table_data, validate_name
 
 
 def get_schema(metadata, table_name):
@@ -24,6 +26,43 @@ def get_schema(metadata, table_name):
             raise ValueError(f"Повторный столбец или неизвестный тип: {column}.")
         schema[name] = data_type
     return schema
+
+
+def validate_clause(schema, clause, updating=False):
+    """Проверяет существование полей и точное соответствие Python-типов."""
+    if not clause:
+        raise ValueError("Условие или список изменений не может быть пустым.")
+    for column, value in clause.items():
+        if column not in schema:
+            raise KeyError(column)
+        if updating and column == ID_COLUMN:
+            raise ValueError("Автоматический ID изменять нельзя.")
+        if type(value) is not VALID_TYPES[schema[column]]:
+            raise ValueError(f"Для столбца {column} требуется тип {schema[column]}.")
+
+
+def validate_rows(schema, rows):
+    """Отклоняет повреждённые строки и повторяющиеся ID до изменения данных."""
+    identifiers = set()
+    for row in rows:
+        if not isinstance(row, dict) or row.keys() != schema.keys():
+            raise ValueError("Состав полей записи не соответствует схеме таблицы.")
+        validate_clause(schema, row)
+        if row[ID_COLUMN] < 1 or row[ID_COLUMN] in identifiers:
+            raise ValueError("ID должен быть положительным и уникальным.")
+        identifiers.add(row[ID_COLUMN])
+
+
+def matches(row, where_clause):
+    """Сравнивает значения вместе с типами, различая True и 1."""
+    return all(
+        (
+            column in row
+            and type(row[column]) is type(value)
+            and (row[column] == value)
+            for column, value in where_clause.items()
+        )
+    )
 
 
 def create_table(metadata, table_name, columns):
@@ -50,3 +89,50 @@ def drop_table(metadata, table_name):
 def list_tables(metadata):
     """Возвращает отсортированный список имён таблиц."""
     return sorted(metadata)
+
+
+def insert(metadata, table_name, values):
+    """Проверяет значения и добавляет запись с max(ID) + 1."""
+    schema = get_schema(metadata, table_name)
+    columns = list(schema)[1:]
+    if len(values) != len(columns):
+        raise ValueError(f"Ожидается {len(columns)} значений без ID.")
+    row = dict(zip(columns, values, strict=True))
+    validate_clause(schema, row)
+    data = load_table_data(table_name)
+    validate_rows(schema, data)
+    row = {ID_COLUMN: max((item[ID_COLUMN] for item in data), default=0) + 1, **row}
+    return [*data, row]
+
+
+def select(table_data, where_clause=None):
+    return [
+        row.copy()
+        for row in table_data
+        if where_clause is None or matches(row, where_clause)
+    ]
+
+
+def update(table_data, set_clause, where_clause):
+    """Обновляет совпавшие записи, оставляя исходные данные без изменений."""
+    if not set_clause or not where_clause:
+        raise ValueError("Для update нужны set и where.")
+    if ID_COLUMN in set_clause:
+        raise ValueError("Автоматический ID изменять нельзя.")
+    for row in table_data:
+        for column, value in set_clause.items():
+            if column not in row:
+                raise KeyError(column)
+            if type(value) is not type(row[column]):
+                raise ValueError(f"Неверный тип значения столбца {column}.")
+    return [
+        {**row, **set_clause} if matches(row, where_clause) else row.copy()
+        for row in table_data
+    ]
+
+
+def delete(table_data, where_clause):
+    """Удаляет совпавшие строки после подтверждения пользователя."""
+    if not where_clause:
+        raise ValueError("Для delete требуется условие where.")
+    return [row.copy() for row in table_data if not matches(row, where_clause)]

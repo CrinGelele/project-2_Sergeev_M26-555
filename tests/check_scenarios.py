@@ -10,6 +10,7 @@ import time
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from primitive_db import core
 from primitive_db.decorators import create_cacher, handle_db_errors
@@ -277,6 +278,28 @@ def check_functions_and_cache():
     print("PASS: парсер, кэш-замыкание, независимые копии и декоратор ошибок")
 
 
+#Этап 8
+
+def check_metadata_contract():
+    """Проверяет изменение общей схемы только после успешной операции."""
+    metadata = {}
+    assert core.create_table(metadata, "people", ["name:str"]) is metadata
+    expected = {"people": ["ID:int", "name:str"]}
+    assert metadata == expected
+    assert core.create_table(metadata, "people", ["age:int"]) is None
+    assert core.create_table(metadata, "invalid", ["age:float"]) is None
+    assert metadata == expected
+    with patch("primitive_db.decorators.prompt.string", return_value="n"):
+        assert core.drop_table(metadata, "people") is None
+    assert metadata == expected
+    with patch("primitive_db.decorators.prompt.string", return_value="y"):
+        assert core.drop_table(metadata, "missing") is None
+        assert metadata == expected
+        assert core.drop_table(metadata, "people") is metadata
+    assert metadata == {}
+    print("PASS: metadata обновляется на месте; ошибки и отмена сохраняют схему")
+
+
 def check_structure_and_io():
     """Сверяет ограничения приложения и JSON-функции из условия."""
     modules = {path.name for path in (ROOT / "src/primitive_db").glob("*.py")}
@@ -323,6 +346,7 @@ def main():
             check_invalid_commands()
             check_corrupted_files()
             check_functions_and_cache()
+            check_metadata_contract()
             check_structure_and_io()
             output = session(
                 "09-drop-and-recreate",

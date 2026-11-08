@@ -21,6 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO_DIR = ROOT / "demo"
 WORKSPACE = ROOT / ".demo-workspaces" / str(time.time_ns())
 
+#Этап 8
+
+COMMAND_PAUSE_SECONDS = 2.0
+
 
 def main():
     """Запускает оболочку, устанавливает пакет и показывает весь цикл CRUD."""
@@ -96,7 +100,7 @@ def main():
 
     def send(command, next_prompt):
         """Передаёт команду терминалу; её отображает настоящий терминальный echo."""
-        time.sleep(0.25)
+        time.sleep(COMMAND_PAUSE_SECONDS)
         os.write(master, (command + "\n").encode())
         receive(next_prompt)
 
@@ -127,6 +131,7 @@ def main():
         send("y", COMMAND_PROMPT)
         send("list_tables", COMMAND_PROMPT)
         send("exit", "demo$ ")
+        time.sleep(COMMAND_PAUSE_SECONDS)
         os.write(master, b"exit\n")
         deadline = time.monotonic() + 10
         while process.poll() is None and time.monotonic() < deadline:

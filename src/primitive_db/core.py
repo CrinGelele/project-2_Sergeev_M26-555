@@ -1,9 +1,19 @@
-#Этап 3
-
 """Управление схемами, валидация и CRUD без классов."""
 
+#Этап 4
+
+import json
+
 from primitive_db.constants import ID_COLUMN, ID_DEFINITION, VALID_TYPES
+from primitive_db.decorators import (
+    confirm_action,
+    create_cacher,
+    handle_db_errors,
+    log_time,
+)
 from primitive_db.utils import load_table_data, validate_name
+
+cache_select = create_cacher()
 
 
 def get_schema(metadata, table_name):
@@ -56,15 +66,12 @@ def validate_rows(schema, rows):
 def matches(row, where_clause):
     """Сравнивает значения вместе с типами, различая True и 1."""
     return all(
-        (
-            column in row
-            and type(row[column]) is type(value)
-            and (row[column] == value)
-            for column, value in where_clause.items()
-        )
+        column in row and type(row[column]) is type(value) and row[column] == value
+        for column, value in where_clause.items()
     )
 
 
+@handle_db_errors
 def create_table(metadata, table_name, columns):
     """Создаёт схему с автоматическим ID, не меняя исходный словарь."""
     validate_name(table_name)
@@ -78,6 +85,8 @@ def create_table(metadata, table_name, columns):
     return result
 
 
+@handle_db_errors
+@confirm_action("удаление таблицы")
 def drop_table(metadata, table_name):
     """Удаляет схему таблицы после подтверждения, возвращая новый словарь."""
     get_schema(metadata, table_name)
@@ -86,11 +95,14 @@ def drop_table(metadata, table_name):
     return result
 
 
+@handle_db_errors
 def list_tables(metadata):
     """Возвращает отсортированный список имён таблиц."""
     return sorted(metadata)
 
 
+@handle_db_errors
+@log_time
 def insert(metadata, table_name, values):
     """Проверяет значения и добавляет запись с max(ID) + 1."""
     schema = get_schema(metadata, table_name)
@@ -105,14 +117,24 @@ def insert(metadata, table_name, values):
     return [*data, row]
 
 
+@handle_db_errors
+@log_time
 def select(table_data, where_clause=None):
-    return [
-        row.copy()
-        for row in table_data
-        if where_clause is None or matches(row, where_clause)
-    ]
+    """Кэширует запрос по снимку данных; возвращает независимые копии строк."""
+    key = json.dumps([table_data, where_clause], sort_keys=True, ensure_ascii=False)
+
+    def calculate():
+        """Вычисляет выборку при первом запросе к этому снимку данных."""
+        return [
+            row.copy()
+            for row in table_data
+            if (where_clause is None or matches(row, where_clause))
+        ]
+
+    return [row.copy() for row in cache_select(key, calculate)]
 
 
+@handle_db_errors
 def update(table_data, set_clause, where_clause):
     """Обновляет совпавшие записи, оставляя исходные данные без изменений."""
     if not set_clause or not where_clause:
@@ -131,6 +153,8 @@ def update(table_data, set_clause, where_clause):
     ]
 
 
+@handle_db_errors
+@confirm_action("удаление записей")
 def delete(table_data, where_clause):
     """Удаляет совпавшие строки после подтверждения пользователя."""
     if not where_clause:
